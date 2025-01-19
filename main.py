@@ -1,37 +1,39 @@
-from fastapi import FastAPI, File, UploadFile
-import uvicorn
-import numpy as np
-from io import BytesIO
-from PIL  import Image
-import tensorflow as tf
+from mode import *
+import argparse
 
-app = FastAPI()
 
-MODEL = tf.keras.models.load_model("model.h5")
-CLASS_NAMES = ["Early Blight", "Late Blight", "Healthy"]
+parser = argparse.ArgumentParser()
 
-def read_file_as_image(data) -> np.ndarray:
-    image = np.array(Image.open(BytesIO(data)))
-    return image
+def str2bool(v):
+    return v.lower() in ('true')
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+parser.add_argument("--LR_path", type = str, default = '../DIV2K/DIV2K_train_LR_bicubic/X4')
+parser.add_argument("--GT_path", type = str, default = '../DIV2K/DIV2K_train_HR/')
+parser.add_argument("--res_num", type = int, default = 16)
+parser.add_argument("--num_workers", type = int, default = 0)
+parser.add_argument("--batch_size", type = int, default = 1)
+parser.add_argument("--L2_coeff", type = float, default = 1.0)
+parser.add_argument("--adv_coeff", type = float, default = 1e-3)
+parser.add_argument("--tv_loss_coeff", type = float, default = 0.0)
+parser.add_argument("--pre_train_epoch", type = int, default = 60)
+parser.add_argument("--fine_train_epoch", type = int, default = 30)
+parser.add_argument("--scale", type = int, default = 4)
+parser.add_argument("--patch_size", type = int, default = 24)
+parser.add_argument("--feat_layer", type = str, default = 'relu5_4')
+parser.add_argument("--vgg_rescale_coeff", type = float, default = 0.006)
+parser.add_argument("--fine_tuning", type = str2bool, default = False)
+parser.add_argument("--in_memory", type = str2bool, default = True)
+parser.add_argument("--generator_path", type = str)
+parser.add_argument("--mode", type = str, default = 'train')
 
-@app.post("/predict")
-async def predict(
-    file: UploadFile = File(...),
-):
-    image = read_file_as_image(await file.read())
-    img_batch = np.expand_dims(image, 0)
-    predictions = MODEL.predict(img_batch)
-    index = np.argmax(predictions[0])
-    predicted_class = CLASS_NAMES[index]
-    confidence = np.max(predictions[0])
-    return {
-        "class": predicted_class,
-        "confidence": float(confidence),
-    }
+args = parser.parse_args()
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="localhost", port=8000)
+if args.mode == 'train':
+    train(args)
+    
+elif args.mode == 'test':
+    test(args)
+    
+elif args.mode == 'test_only':
+    test_only(args)
+
